@@ -1,0 +1,205 @@
+// ==UserScript==
+// @name         Limango Zendesk Side Conversation Replacement Script
+// @namespace    https://limango.com
+// @version      0.1.0
+// @description  Replaces [[limango.*]] placeholders in the Zendesk side conversation composer via the Limango360 sidebar app
+// @author       limango GmbH
+// @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
+// @downloadURL  https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
+// @match        https://limango.zendesk.com/agent/*
+// @match        https://limango1779089774.zendesk.com/agent/*
+// @match        https://limango1778837136.zendesk.com/agent/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=limango.de
+// @grant        none
+// ==/UserScript==
+
+(function () {
+  'use strict'
+
+  const PLACEHOLDER_PREFIX = '[[limango.'
+  const EVENT_NAME_REPLACEMENT_RESULT = 'LIMANGO_SIDE_CONVERSATION_REPLACEMENT_RESULT'
+  const EVENT_NAME_REPLACEMENT_REQUEST = 'LIMANGO_SIDE_CONVERSATION_REPLACEMENT_REQUEST'
+  const QUERY_SELECTOR_SUBJECT = '[data-test-id="threadSubject"]'
+  const QUERY_SELECTOR_BODY = '[data-test-id="threadBody"]'
+  const DEBOUNCE_MS = 500
+  // How long to ignore CKEditor change events after our own setData(), so the
+  // model change it fires doesn't bounce straight back into another replacement.
+  const INJECT_GUARD_MS = 500
+  // While the composer element exists but CKEditor hasn't attached its instance
+  // yet, re-check on this interval until el.ckeditorInstance shows up.
+  const ATTACH_POLL_MS = 100
+  const APP_ORIGINS = [
+    'https://1224403.apps.zdusercontent.com', // production
+    'https://1251290.apps.zdusercontent.com', // staging
+    'https://1251258.apps.zdusercontent.com', // sandbox
+    'http://localhost:3000'                   // local development
+  ]
+
+  // Active composer state — replaced each time the panel opens/closes.
+  // The composer is a CKEditor 5 editable; CKEditor attaches the live editor
+  // instance to the editable DOM root as `element.ckeditorInstance`. We run with
+  // @grant none (page context), so that expando is directly readable and we can
+  // drive the editor through its own data/model API instead of fragile DOM events.
+  let activeComposerEl = null
+  let activeEditor = null
+  let debounceTimer = null
+  let attachPollTimer = null
+  let isInjecting = false
+
+  const findAppIframe = () => {
+    for (const iframe of document.querySelectorAll('iframe')) {
+      const matchingOrigin = APP_ORIGINS.find(o => iframe.src.startsWith(o))
+      if (matchingOrigin) {
+        console.log('[Limango Side Conversation Replacement Script] found Limango360 iframe')
+        return { iframe, origin: matchingOrigin }
+      }
+    }
+    console.warn('[Limango Side Conversation Replacement Script] no Limango360 iframe found')
+    return null
+  }
+
+  const sendForReplacement = (fields) => {
+    const appFrame = findAppIframe()
+    if (!appFrame?.iframe.contentWindow) return
+    console.log('[Limango Side Conversation Replacement Script] sending fields for replacement:', Object.keys(fields).join(", "))
+    appFrame.iframe.contentWindow.postMessage(
+      { type: EVENT_NAME_REPLACEMENT_REQUEST, fields },
+      appFrame.origin,
+    )
+  }
+
+  // Collect every side-conversation field that still contains placeholders and
+  // ask the app to resolve them in one message. Triggered by body changes (and
+  // once on attach): a macro fills body + subject together, and the body fill
+  // reliably fires CKEditor's change:data, so we read the subject at that moment.
+  // Debounced via onModelChange.
+  const processFields = () => {
+    if (!activeEditor) return
+
+    const fields = {}
+
+    const body = activeEditor.getData()
+    if (body.includes(PLACEHOLDER_PREFIX)) fields.body = body
+
+    const subject = document.querySelector(QUERY_SELECTOR_SUBJECT)?.value
+    if (subject && subject.includes(PLACEHOLDER_PREFIX)) fields.subject = subject
+
+    if (Object.keys(fields).length === 0) return
+
+    console.log('[Limango Side Conversation Replacement Script] composer fields changed:', Object.keys(fields).join(", "))
+    sendForReplacement(fields)
+  }
+
+  // Single stable handler so we can on()/off() the same reference across attaches.
+  const onModelChange = () => {
+    if (isInjecting) return
+    clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(processFields, DEBOUNCE_MS)
+  }
+
+  // Write the resolved text back into the composer via CKEditor's data pipeline.
+  // setData() replaces the whole document, goes through schema/conversion, and
+  // fires the model change events Zendesk's own composer syncs to (Send button,
+  // draft state). No clipboard events, no selection juggling.
+  const injectText = (editor, html) => {
+    clearTimeout(debounceTimer) // cancel any queued send
+    isInjecting = true
+    editor.setData(html)
+    // Nicety: drop the caret at the end so the agent can keep typing after the
+    // inserted text (setData otherwise resets selection to document start). A
+    // selection-only change does not fire change:data, so it can't re-trigger us.
+    try {
+      editor.model.change((writer) => {
+        writer.setSelection(editor.model.document.getRoot(), 'end')
+      })
+    } catch (e) {
+      console.warn('[Limango Side Conversation Replacement Script] could not move caret after setData', e)
+    }
+    // setData fires change:data synchronously; the short guard also swallows any
+    // async post-fixer change so our own write never bounces back as a new send.
+    setTimeout(() => { isInjecting = false }, INJECT_GUARD_MS)
+  }
+
+  // Write a value into a React-controlled <input> (e.g. the subject field).
+  // React tracks the input's value via its own internal setter, so a plain
+  // `input.value = …` is ignored on re-render; we call the native value setter
+  // and dispatch an input event so React's onChange picks the change up.
+  const setReactInputValue = (input, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (setter) setter.call(input, value)
+    else input.value = value
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  const attachComposer = (el, editor) => {
+    console.log('[Limango Side Conversation Replacement Script] attaching to CKEditor instance', el)
+    activeComposerEl = el
+    activeEditor = editor
+    editor.model.document.on('change:data', onModelChange)
+    // A macro may have pre-filled the composer before we subscribed (no change
+    // event reaches us in that case), so check the current content once.
+    processFields()
+  }
+
+  const detachComposer = () => {
+    console.log('[Limango Side Conversation Replacement Script] detaching composer — panel closed')
+    activeEditor?.model.document.off('change:data', onModelChange)
+    activeEditor = null
+    activeComposerEl = null
+    clearTimeout(debounceTimer)
+    clearTimeout(attachPollTimer)
+    attachPollTimer = null
+  }
+
+  // Resolve the composer element + its CKEditor instance and (re)subscribe.
+  // The editable div can appear in the DOM a tick before CKEditor sets its
+  // ckeditorInstance expando (an attribute-level change the body observer below
+  // doesn't see), so we poll briefly until the instance is available.
+  const ensureAttached = () => {
+    const el = document.querySelector(QUERY_SELECTOR_BODY)
+
+    if (!el) {
+      if (activeComposerEl) detachComposer()
+      return
+    }
+
+    if (el === activeComposerEl) return // already attached to this element
+
+    if (el.ckeditorInstance) {
+      clearTimeout(attachPollTimer)
+      attachPollTimer = null
+      attachComposer(el, el.ckeditorInstance)
+    } else {
+      // Editor still initializing — re-check shortly.
+      clearTimeout(attachPollTimer)
+      attachPollTimer = setTimeout(ensureAttached, ATTACH_POLL_MS)
+    }
+  }
+
+  // Receive the resolved fields from the app iframe and write each one back into
+  // its field. The userscript owns how each field type is written (CKEditor for
+  // the body, a React-controlled input for the subject).
+  window.addEventListener('message', (e) => {
+    if (e.data?.type !== EVENT_NAME_REPLACEMENT_RESULT) return
+    if (!APP_ORIGINS.includes(e.origin)) return
+    const fields = e.data.fields
+    if (!fields || typeof fields !== 'object') return
+    console.log('[Limango Side Conversation Replacement Script] received fields from replacement:', Object.keys(fields).join(", "))
+
+    if (typeof fields.body === 'string' && activeEditor) {
+      injectText(activeEditor, fields.body)
+    }
+    if (typeof fields.subject === 'string') {
+      const subjectInput = document.querySelector(QUERY_SELECTOR_SUBJECT)
+      if (subjectInput) setReactInputValue(subjectInput, fields.subject)
+    }
+  })
+
+  // Watch the body for the composer appearing (panel opened) or disappearing (panel closed).
+  // Keeps running permanently so it catches every open/close cycle.
+  console.log('[Limango Side Conversation Replacement Script] registering body observer')
+  new MutationObserver(ensureAttached).observe(document.body, { childList: true, subtree: true })
+
+  // Handle the panel already being open when the script loads.
+  ensureAttached()
+})()
