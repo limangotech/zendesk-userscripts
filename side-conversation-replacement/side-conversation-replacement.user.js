@@ -4,8 +4,8 @@
 // @version      0.2.0
 // @description  Replaces [[limango.*]] placeholders in the Zendesk side conversation composer via the Limango360 sidebar app
 // @author       limango GmbH
-// @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js
-// @downloadURL  https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js
+// @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
+// @downloadURL  https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
 // @match        https://limango.zendesk.com/agent/*
 // @match        https://limango1779089774.zendesk.com/agent/*
 // @match        https://limango1778837136.zendesk.com/agent/*
