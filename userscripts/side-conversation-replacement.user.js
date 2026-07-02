@@ -1,15 +1,16 @@
 // ==UserScript==
 // @name         Limango Zendesk Side Conversation Replacement Script
 // @namespace    https://limango.com
-// @version      0.1.0
+// @version      0.2.0
 // @description  Replaces [[limango.*]] placeholders in the Zendesk side conversation composer via the Limango360 sidebar app
 // @author       limango GmbH
-// @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
-// @downloadURL  https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js
+// @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js
+// @downloadURL  https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js
 // @match        https://limango.zendesk.com/agent/*
 // @match        https://limango1779089774.zendesk.com/agent/*
 // @match        https://limango1778837136.zendesk.com/agent/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=limango.de
+// @require      https://unpkg.com/dompurify@3.4.11/dist/purify.min.js#sha256-26u1sgWjM+xJyMCef8ow72bfBSO7i8D6nqhDhB8RHb0=
 // @grant        none
 // ==/UserScript==
 
@@ -97,14 +98,41 @@
     debounceTimer = setTimeout(processFields, DEBOUNCE_MS)
   }
 
+  // Sanitize HTML coming back from the Limango 360 app before it is written into
+  // the editor. The app is first-party and the postMessage origin is checked, but
+  // the resolved values come from order data that can contain customer-controlled
+  // text — so a value could smuggle markup (e.g. `<img src=x onerror=…>`) that must
+  // not be interpreted. DOMPurify is an allowlist sanitizer: its defaults keep
+  // normal rich-text formatting while dropping scripts, on* handlers and dangerous
+  // URL schemes. It is loaded before this script runs — via @require in the userscript, and as a
+  // bundled content-script file in the extension (see extension/manifest.json and scripts/build.mjs).
+  //
+  // Fail closed: if the library somehow isn't present, refuse to inject rather than
+  // writing unsanitized HTML into the composer.
+  const sanitizeHtml = (html) => {
+    if (typeof DOMPurify === 'undefined') {
+      console.error('[Limango Side Conversation Replacement Script] DOMPurify not available — refusing to inject unsanitized HTML')
+      return null
+    }
+    return DOMPurify.sanitize(html)
+  }
+
   // Write the resolved text back into the composer via CKEditor's data pipeline.
   // setData() replaces the whole document, goes through schema/conversion, and
   // fires the model change events Zendesk's own composer syncs to (Send button,
-  // draft state). No clipboard events, no selection juggling.
+  // draft state). No clipboard events, no selection juggling. The HTML is sanitized
+  // first — see sanitizeHtml — so untrusted markup can never reach the editor.
   const injectText = (editor, html) => {
     clearTimeout(debounceTimer) // cancel any queued send
     isInjecting = true
-    editor.setData(html)
+
+    const sanitized = sanitizeHtml(html)
+    if (!sanitized) {
+      isInjecting = false
+      return
+    }
+
+    editor.setData(sanitized)
     // Nicety: drop the caret at the end so the agent can keep typing after the
     // inserted text (setData otherwise resets selection to document start). A
     // selection-only change does not fire change:data, so it can't re-trigger us.
