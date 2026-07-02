@@ -6,7 +6,7 @@ A collection of browser userscripts for Zendesk agents at limango, extending Zen
 
 ## Side Conversation Replacement Script
 
-**File:** [`side-conversation-replacement/side-conversation-replacement.user.js`](side-conversation-replacement/side-conversation-replacement.user.js)
+**File:** [`userscripts/side-conversation-replacement.user.js`](userscripts/side-conversation-replacement.user.js)
 
 Automatically replaces `[[limango.*]]` placeholders in the Zendesk side conversation composer (subject line and body) with live (order) data from the Limango 360 app currently open in the sidebar.
 
@@ -28,7 +28,7 @@ When an agent applies a macro containing placeholders, the script detects them, 
     - [Violentmonkey](https://violentmonkey.github.io/) for Chrome, Firefox, or Edge
     - [Apple Userscripts](https://apps.apple.com/us/app/userscripts/id1463298887/) for Safari
 2. Install the script:
-    - [Side Conversation Replacement Script](https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/side-conversation-replacement/side-conversation-replacement.user.js)
+    - [Side Conversation Replacement Script](https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js)
 3. Click on Install
 4. Reload any open Zendesk tabs — the script runs automatically on `limango.zendesk.com` and testing subdomains.
 
@@ -38,7 +38,7 @@ When an agent applies a macro containing placeholders, the script detects them, 
 3. Click the **+** tab to create a new script.
 4. Delete the default template content.
 5. Copy the full contents of the script you want to install and paste them into the editor:
-    - [`side-conversation-replacement.user.js`](side-conversation-replacement/side-conversation-replacement.user.js)
+    - [`side-conversation-replacement.user.js`](userscripts/side-conversation-replacement.user.js)
 6. Click **File → Save** (or `Ctrl+S` / `Cmd+S`).
 7. Reload any open Zendesk tabs — the script runs automatically on `limango.zendesk.com` and testing subdomains.
 
