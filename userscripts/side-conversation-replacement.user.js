@@ -33,7 +33,6 @@
     'https://1224403.apps.zdusercontent.com', // production
     'https://1251290.apps.zdusercontent.com', // staging
     'https://1251258.apps.zdusercontent.com', // sandbox
-    'http://localhost:3000'                   // local development
   ]
 
   // Active composer state — replaced each time the panel opens/closes.
