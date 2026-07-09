@@ -1,0 +1,39 @@
+# Build and verify the extension. Runs standalone on every push to main and
+# every pull request (the commit CI), and as the shared "check" job inside the
+# release workflow (via workflow_call).
+#
+# The extension/ files are generated from userscripts/ but committed — the
+# git diff guard fails if someone edited a userscript without running
+# `npm run build`, or hand-edited a generated file.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Verify committed generated files match the build
+        run: git diff --exit-code
+
+      - run: npm run lint
