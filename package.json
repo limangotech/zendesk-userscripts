@@ -1,11 +1,12 @@
 {
   "name": "zendesk-userscripts",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Limango Zendesk Userscripts + Browser extension.",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "bump": "node scripts/bump.mjs",
     "lint": "web-ext lint --source-dir extension --self-hosted",
     "dev:firefox": "web-ext run --source-dir extension --url https://limango1778837136.zendesk.com/agent/",
     "sign:firefox": "npm run build && web-ext sign --source-dir extension --channel unlisted"

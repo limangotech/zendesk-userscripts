@@ -38,6 +38,8 @@ The very first tagged release *creates* the unlisted add-on on AMO under the gec
 
 **⚠️ AMO burns version numbers.** Any version that completed an upload — even in a run that failed later — is rejected with HTTP 409 forever. A failure *before* upload (bad credentials, missing agreement) can be re-run for the same tag; a failure *after* the signing step needs a patch bump and a new tag. Never re-push a tag.
 
+**⚠️ Never delete the add-on on AMO.** A deleted add-on's gecko ID is reserved *forever* — no account can ever submit that ID again ("Duplicate add-on ID found"), and the only way out is changing the ID in `extension/manifest.json` (which strands existing installs). Deleting is not a clean-up; it's a one-way door.
+
 ### How Firefox auto-update works
 
 `extension/manifest.json` points Firefox at the feed via `browser_specific_settings.gecko.update_url` = `https://github.com/limangotech/zendesk-userscripts/releases/latest/download/updates.json` — GitHub's stable URL for the `updates.json` asset of the **newest published release**. The feed is cumulative (every version ever released stays listed; each release also keeps the snapshot it shipped with); Firefox periodically installs the highest compatible entry:
@@ -45,7 +47,7 @@ The very first tagged release *creates* the unlisted add-on on AMO under the gec
 ```json
 {
   "addons": {
-    "zendesk-userscripts@limango.com": {
+    "zendesk-userscripts-v1@limango.com": {
       "updates": [
         {
           "version": "0.3.0",
