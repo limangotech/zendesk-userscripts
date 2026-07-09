@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Limango Zendesk (Agent) Userscripts",
+  "version": "0.2.0",
+  "description": "limango Zendesk (Agent) Userscripts.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://limango.zendesk.com/agent/*",
+        "https://limango1779089774.zendesk.com/agent/*",
+        "https://limango1778837136.zendesk.com/agent/*"
+      ],
+      "js": [
+        "vendor/purify.min.js",
+        "features/side-conversation-replacement.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zendesk-side-conversation-replacement@limango.com",
+      "strict_min_version": "140.0",
+      "update_url": "https://raw.githubusercontent.com/limangotech/zendesk-userscripts/main/webstores/mozilla/updates.json",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}
