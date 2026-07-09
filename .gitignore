@@ -11,6 +11,12 @@
 # production
 /build
 
+# extension build artifacts
+/dist
+/web-ext-artifacts
+*.xpi
+*.crx
+
 # misc
 .DS_Store
 *.pem
