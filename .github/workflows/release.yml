@@ -40,6 +40,10 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    outputs:
+      # Tag of the newest published release carrying an updates.json asset;
+      # empty means there is no feed yet and a fresh one gets started.
+      feed-tag: ${{ steps.feed.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
 
@@ -51,33 +55,42 @@ jobs:
             exit 1
           fi
 
-      - name: Fail fast if this version is already in the published feed
-        # AMO rejects duplicate versions anyway (HTTP 409) — catch it before the
-        # draft is even created. Reads the feed of the latest PUBLISHED release;
-        # --exclude-drafts keeps a leftover draft from a previous run out of it.
+      - name: Locate the update feed and fail if this version is already listed
+        # The feed lives on the newest PUBLISHED release that carries an
+        # updates.json asset — releases without one (e.g. created manually, or
+        # predating this pipeline) are skipped. AMO rejects duplicate versions
+        # anyway (HTTP 409) — catch it before the draft is even created.
+        id: feed
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          LATEST=$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName -q '.[].tagName')
-          if [ -z "$LATEST" ]; then
-            echo "No published release yet — nothing to check."
+          FEED_TAG=$(gh api "repos/$GH_REPO/releases?per_page=100" \
+            --jq '[.[] | select(.draft == false and .prerelease == false) | select(any(.assets[]; .name == "updates.json"))][0].tag_name // empty')
+          echo "tag=$FEED_TAG" >> "$GITHUB_OUTPUT"
+          if [ -z "$FEED_TAG" ]; then
+            echo "No published release carries an updates.json yet — the feed will be started fresh."
             exit 0
           fi
-          gh release download "$LATEST" --pattern updates.json --dir feed-check
+          echo "Current feed found on release $FEED_TAG."
+          gh release download "$FEED_TAG" --pattern updates.json --dir feed-check
           if node -e "process.exit(Object.values(JSON.parse(require('fs').readFileSync('feed-check/updates.json','utf8')).addons).some(a => a.updates.some(u => u.version === '$VERSION')) ? 0 : 1)"; then
             echo "Version $VERSION is already listed in the update feed — bump the version" >&2
             exit 1
           fi
 
       - name: Create the draft release
-        # Reuse an existing release on re-runs instead of stacking duplicate
-        # drafts (drafts are not unique per tag).
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release for $GITHUB_REF_NAME already exists — reusing it."
+          if IS_DRAFT=$(gh release view "$GITHUB_REF_NAME" --json isDraft -q '.isDraft' 2>/dev/null); then
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "Draft release for $GITHUB_REF_NAME already exists — reusing it."
+            else
+              echo "A PUBLISHED release for $GITHUB_REF_NAME already exists — refusing to write into a live release." >&2
+              echo "Delete it (gh release delete $GITHUB_REF_NAME) or bump the version and tag again." >&2
+              exit 1
+            fi
           else
             gh release create "$GITHUB_REF_NAME" \
               --draft \
@@ -102,21 +115,22 @@ jobs:
 
       - run: npm ci
 
-      - name: Download the update feed from the latest published release
+      - name: Download the update feed located by the prepare job
         # The feed is cumulative: this release ships updates.json = previous feed
-        # + the new version. The very first release starts a fresh feed. If a
-        # published release exists, its feed asset must too — hard-fail rather
-        # than silently restarting the feed and losing the version history.
+        # + the new version. Prepare resolved which release carries the current
+        # feed (empty = very first release, start fresh); if one was found, this
+        # download must succeed — hard-fail rather than silently restarting the
+        # feed and losing the version history.
         env:
           GH_TOKEN: ${{ github.token }}
+          FEED_TAG: ${{ needs.prepare.outputs.feed-tag }}
         run: |
           mkdir -p web-ext-artifacts
-          LATEST=$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName -q '.[].tagName')
-          if [ -n "$LATEST" ]; then
-            gh release download "$LATEST" --pattern updates.json --dir web-ext-artifacts
-            echo "Downloaded the feed from $LATEST."
+          if [ -n "$FEED_TAG" ]; then
+            gh release download "$FEED_TAG" --pattern updates.json --dir web-ext-artifacts
+            echo "Downloaded the feed from $FEED_TAG."
           else
-            echo "No published release yet — the feed will be started fresh."
+            echo "No existing feed — it will be started fresh."
           fi
 
       - name: Sign on AMO (unlisted channel)
