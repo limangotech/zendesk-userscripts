@@ -96,7 +96,7 @@ jobs:
               --draft \
               --verify-tag \
               --title "$GITHUB_REF_NAME" \
-              --notes "Firefox: signed by Mozilla (AMO unlisted). Install: open the .xpi in Firefox. Installed copies auto-update via the updates.json feed on the latest release."
+              --generate-notes
           fi
 
   check:

@@ -3,12 +3,8 @@
 A collection of browser userscripts for Zendesk agents at limango, extending Zendesk's functionality in combination with the Limango 360 sidebar app.
 
 <p align="center">
-  <a href="#chrome">
-    <img src="assets/install-chrome.svg" alt="Install for Chrome — go to Chrome Web Store" width="380">
-  </a>
-  <a href="https://github.com/limangotech/zendesk-userscripts/releases/latest/download/zendesk-userscripts.xpi">
-    <img src="assets/install-firefox.svg" alt="Install for Firefox — one-click install, auto-updates" width="380">
-  </a>
+  <a href="#chrome"><img src="assets/install-chrome.svg" alt="Install for Chrome — go to Chrome Web Store" width="380"></a>
+  <a href="https://github.com/limangotech/zendesk-userscripts/releases/latest/download/zendesk-userscripts.xpi"><img src="assets/install-firefox.svg" alt="Install for Firefox — one-click install, auto-updates" width="380"></a>
 </p>
 
 ---
