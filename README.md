@@ -46,9 +46,9 @@ That's it. The extension is signed by Mozilla and **updates itself automatically
 
 Releases are automated: pushing a version tag makes GitHub Actions sign the extension on Firefox AMO (unlisted) and create a GitHub Release carrying the signed `.xpi` plus the cumulative auto-update feed (`updates.json`). Installed copies pick the new version up automatically.
 
-1. Edit the userscript in `userscripts/` and bump its `@version`.
-2. Bump `version` in [extension/manifest.json](extension/manifest.json) to the same value.
-3. Rebuild and check: `npm run build && npm run lint` (commit the regenerated files).
+1. Make your changes in `userscripts/` (bump the changed userscript's own `@version` — userscripts are versioned independently).
+2. `npm run bump` — bumps the extension's patch version in [extension/manifest.json](extension/manifest.json) and `package.json`, then rebuilds (`npm run bump --minor`, `--major`, or `npm run bump 1.2.3` for other bumps).
+3. `npm run lint`, then commit (including the regenerated files).
 4. Merge to `main`, then tag and push:
    ```bash
    git tag v<version>   # must match manifest.json, e.g. v0.3.0
@@ -56,7 +56,7 @@ Releases are automated: pushing a version tag makes GitHub Actions sign the exte
    ```
 5. Watch the **Release extension** workflow in the Actions tab. When it's green, the release exists and agents auto-update.
 
-⚠️ AMO never accepts the same version number twice — if a run fails after the signing step, bump the patch version and push a new tag instead of re-running. One-time setup (AMO API secrets), how the release pipeline and auto-update feed work, and the manual fallback: see [DEVELOPMENT.md](DEVELOPMENT.md).
+⚠️ Mozilla AMO never accepts the same version number twice — if a run fails after the signing step, bump the patch version and push a new tag instead of re-running. One-time setup (AMO API secrets), how the release pipeline and auto-update feed work, and the manual fallback: see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 
