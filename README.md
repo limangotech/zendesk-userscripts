@@ -12,7 +12,11 @@ A collection of browser userscripts for Zendesk agents at limango, extending Zen
 ## Installation
 
 ### Chrome
-tbd — a Chrome Web Store (unlisted) listing is in preparation. Until then, use the [userscript manager](#userscript-manager) route below.
+1. Open the extension's Chrome Web Store page: **[Limango Zendesk Userscripts on the Chrome Web Store](https://chromewebstore.google.com/detail/EXTENSION_ID)** <!-- TODO: replace EXTENSION_ID after the first store publish --> — the listing is unlisted, reachable only via this link.
+2. Click **Add to Chrome**, then **Add extension** in the confirmation popup.
+3. Reload any open Zendesk tabs — the extension runs automatically on `limango.zendesk.com` and the testing subdomains.
+
+The extension **updates itself automatically** via the Chrome Web Store when we publish a new version.
 
 ### Firefox
 1. In Firefox, click this link: **[Install the extension (.xpi)](https://github.com/limangotech/zendesk-userscripts/releases/latest/download/zendesk-userscripts.xpi)**
@@ -49,7 +53,7 @@ That's it. The extension is signed by Mozilla and **updates itself automatically
 
 ## Deploying a new version
 
-Releases are automated: pushing a version tag makes GitHub Actions sign the extension on Firefox AMO (unlisted) and create a GitHub Release carrying the signed `.xpi` plus the cumulative auto-update feed (`updates.json`). Installed copies pick the new version up automatically.
+Releases are automated: pushing a version tag makes GitHub Actions sign the extension on Firefox AMO (unlisted), upload the same build to the Chrome Web Store (unlisted, published automatically once Google's review clears), and create a GitHub Release carrying the signed `.xpi` plus the cumulative auto-update feed (`updates.json`). Installed copies pick the new version up automatically — Chrome a little later than Firefox, because of the store review.
 
 1. Make your changes in `userscripts/` (bump the changed userscript's own `@version` — userscripts are versioned independently).
 2. `npm run bump` — bumps the extension's patch version in [extension/manifest.json](extension/manifest.json) and `package.json`, then rebuilds (`npm run bump --minor`, `--major`, or `npm run bump 1.2.3` for other bumps).
@@ -61,7 +65,7 @@ Releases are automated: pushing a version tag makes GitHub Actions sign the exte
    ```
 5. Watch the **Release extension** workflow in the Actions tab. When it's green, the release exists and agents auto-update.
 
-⚠️ Mozilla AMO never accepts the same version number twice — if a run fails after the signing step, bump the patch version and push a new tag instead of re-running. One-time setup (AMO API secrets), how the release pipeline and auto-update feed work, and the manual fallback: see [DEVELOPMENT.md](DEVELOPMENT.md).
+⚠️ Neither store accepts the same version number twice — if a run fails after the signing/upload step, bump the patch version and push a new tag instead of re-running. One-time setup (AMO and Chrome Web Store secrets), how the release pipeline and auto-update feed work, and the manual fallback: see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 
