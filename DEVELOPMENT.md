@@ -4,7 +4,7 @@ Everything for working on and releasing the extension. End-user install steps li
 
 ## How the repo fits together
 
-- `userscripts/*.user.js` — the **source of truth**; each file is a standalone Tampermonkey userscript.
+- `userscripts/*.user.js` — the **source of truth**; each file is a standalone userscript.
 - `scripts/build.mjs` — generates the browser extension from them: strips the userscript metadata into `extension/features/`, regenerates the `content_scripts` in `extension/manifest.json`, and zips `extension/` into `dist/`. Generated files are **committed** (so `extension/` stays loadable unpacked) — never edit them by hand; [ci.yml](.github/workflows/ci.yml) fails on every push/PR (and again at release time) if they don't match a fresh build.
 - `extension/vendor/` — committed copies of the `@require`d libraries (MV3 forbids loading remote code).
 
@@ -13,6 +13,7 @@ npm ci               # once
 npm run build        # regenerate extension/ + dist/ after editing a userscript
 npm run lint         # web-ext lint --self-hosted (validates the manifest)
 npm run dev:firefox  # throwaway Firefox with the extension loaded
+npm run bump         # patch-bump the extension version + rebuild (--minor | --major | explicit: npm run bump 1.2.3)
 ```
 
 ## Releasing
