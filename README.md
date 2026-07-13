@@ -3,7 +3,7 @@
 A collection of browser userscripts for Zendesk agents at limango, extending Zendesk's functionality in combination with the Limango 360 sidebar app.
 
 <p align="center">
-  <a href="#chrome"><img src="assets/install-chrome.svg" alt="Install for Chrome — go to Chrome Web Store" width="380"></a>
+  <a href="https://chromewebstore.google.com/detail/limango-zendesk-userscrip/ngmleeennhacigfhfinallpjgdbngmgn"><img src="assets/install-chrome.svg" alt="Install for Chrome — go to Chrome Web Store" width="380"></a>
   <a href="https://github.com/limangotech/zendesk-userscripts/releases/latest/download/zendesk-userscripts.xpi"><img src="assets/install-firefox.svg" alt="Install for Firefox — one-click install, auto-updates" width="380"></a>
 </p>
 
@@ -12,7 +12,7 @@ A collection of browser userscripts for Zendesk agents at limango, extending Zen
 ## Installation
 
 ### Chrome
-1. Open the extension's Chrome Web Store page: **[Limango Zendesk Userscripts on the Chrome Web Store](https://chromewebstore.google.com/detail/EXTENSION_ID)** <!-- TODO: replace EXTENSION_ID after the first store publish --> — the listing is unlisted, reachable only via this link.
+1. Open the extension's Chrome Web Store page: **[Limango Zendesk Userscripts on the Chrome Web Store](https://chromewebstore.google.com/detail/limango-zendesk-userscrip/ngmleeennhacigfhfinallpjgdbngmgn)** — the listing is unlisted, reachable only via this link.
 2. Click **Add to Chrome**, then **Add extension** in the confirmation popup.
 3. Reload any open Zendesk tabs — the extension runs automatically on `limango.zendesk.com` and the testing subdomains.
 
@@ -24,7 +24,7 @@ The extension **updates itself automatically** via the Chrome Web Store when we 
 3. Click **Add** in the confirmation popup.
 4. Reload any open Zendesk tabs — the extension runs automatically on `limango.zendesk.com` and the testing subdomains.
 
-That's it. The extension is signed by Mozilla and **updates itself automatically** when we publish a new version — no need to reinstall.
+The extension is signed by Mozilla and **updates itself automatically** when we publish a new version with a GitHub release.
 
 ### Other Browsers
 #### Userscript Manager
