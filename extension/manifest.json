@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Limango Zendesk Userscripts",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Extends the Zendesk agent workspace with limango-specific automations, powered by the Limango 360 sidebar app.",
   "minimum_chrome_version": "111",
   "icons": {
