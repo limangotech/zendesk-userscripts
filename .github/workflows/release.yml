@@ -184,13 +184,22 @@ jobs:
       # generated files happened in the shared check job.
       - run: npm run build
 
-      - name: Upload the store zip to the draft release
+      - name: Upload the store zip to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ZIP=(dist/*.zip)
-          cp "${ZIP[0]}" "zendesk-userscripts-$GITHUB_REF_NAME.zip"
-          gh release upload "$GITHUB_REF_NAME" "zendesk-userscripts-$GITHUB_REF_NAME.zip" --clobber
+          ASSET="zendesk-userscripts-$GITHUB_REF_NAME.zip"
+          cp "${ZIP[0]}" "$ASSET"
+          # This zip is an archival record; the CWS upload below is the job's real work. 
+          # On a chrome-only re-run the release may already be published. 
+          # So only touch it while the release is still a draft; once it's live, leave the
+          # already-attached asset as-is and move on to the CWS step.
+          if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft -q '.isDraft')" = "true" ]; then
+            gh release upload "$GITHUB_REF_NAME" "$ASSET" --clobber
+          else
+            echo "Release $GITHUB_REF_NAME is already published (immutable) — leaving its assets untouched."
+          fi
 
       - name: Upload and publish on the Chrome Web Store
         # Bare command = upload + submit for publication in one go; the version
