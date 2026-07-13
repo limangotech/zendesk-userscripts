@@ -9,19 +9,24 @@
 #   firefox   AMO signs the committed extension/ (unlisted) -> uploads the xpi
 #             (versioned + stable name) and the cumulative updates.json feed to
 #             the draft. No build here: check proved committed == fresh build.
-#   chrome    placeholder (skipped) -> builds only to produce the store zip ->
-#             zip on the draft, then Chrome Web Store upload, once the CWS
-#             account and secrets exist
+#   chrome    builds only to produce the store zip (check proved committed ==
+#             fresh build) -> zip on the draft -> uploads + publishes on the
+#             Chrome Web Store (unlisted) — live once Google's review clears,
+#             minutes to days after the release
 #   publish   flips the draft to published once firefox succeeded — the atomic
 #             moment releases/latest/download/updates.json switches over. A failed
 #             chrome job never blocks the Firefox release.
 #
-# Requires two repo secrets from https://addons.mozilla.org/developers/addon/api/key/
-# (company AMO account): WEB_EXT_API_KEY (JWT issuer) and WEB_EXT_API_SECRET.
+# Secrets (one-time setup, see DEVELOPMENT.md):
+#   firefox — WEB_EXT_API_KEY (JWT issuer) and WEB_EXT_API_SECRET from
+#             https://addons.mozilla.org/developers/addon/api/key/ (company AMO account)
+#   chrome  — CWS_EXTENSION_ID, CWS_PUBLISHER_ID, CWS_CLIENT_ID,
+#             CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN (company CWS publisher account)
 #
-# AMO never accepts the same version twice (HTTP 409) — a failed run after the
-# signing step needs a version bump + new tag, not a re-run. A failure in the
-# publish job alone CAN be re-run safely. See DEVELOPMENT.md.
+# Neither store accepts the same version twice (AMO: HTTP 409; CWS: the uploaded
+# version must be strictly greater than the live one) — a failed run after the
+# signing/upload step needs a version bump + new tag, not a re-run. A failure in
+# the publish job alone CAN be re-run safely. See DEVELOPMENT.md.
 
 name: Release extension
 
@@ -163,10 +168,6 @@ jobs:
             --clobber
 
   chrome:
-    # Placeholder until the Chrome Web Store account and OAuth secrets exist
-    # (CWS_EXTENSION_ID, CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN).
-    # To activate: remove the `if: false` and implement the store upload step.
-    if: false
     needs: [prepare, check]
     runs-on: ubuntu-latest
     steps:
@@ -191,11 +192,19 @@ jobs:
           cp "${ZIP[0]}" "zendesk-userscripts-$GITHUB_REF_NAME.zip"
           gh release upload "$GITHUB_REF_NAME" "zendesk-userscripts-$GITHUB_REF_NAME.zip" --clobber
 
-      - name: Upload to the Chrome Web Store
+      - name: Upload and publish on the Chrome Web Store
+        # Bare command = upload + submit for publication in one go; the version
+        # goes live automatically once Google's review clears (minutes to days).
+        # Pinned to v4 — it speaks the CWS API v2 (v1 shuts down 2026-10-15).
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          echo "Not implemented yet — needs the CWS account + secrets." >&2
-          echo "Intended: npx chrome-webstore-upload-cli@3 upload --source dist/*.zip --auto-publish" >&2
-          exit 1
+          ZIP=(dist/*.zip)
+          npx chrome-webstore-upload-cli@4.0.1 --source "${ZIP[0]}"
 
   publish:
     # Publish once firefox succeeded — a failed or skipped chrome job must not
