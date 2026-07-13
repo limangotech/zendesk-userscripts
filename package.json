@@ -1,6 +1,6 @@
 {
   "name": "zendesk-userscripts",
-  "version": "0.2.4",
+  "version": "1.0.0",
   "private": true,
   "description": "Limango Zendesk Userscripts + Browser extension.",
   "type": "module",
