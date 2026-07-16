@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Limango Zendesk Side Conversation Replacement Script
 // @namespace    https://limango.com
-// @version      0.2.1
+// @version      0.3.0
 // @description  Replaces [[limango.*]] placeholders in the Zendesk side conversation composer via the Limango360 sidebar app
 // @author       limango GmbH
 // @updateURL    https://github.com/limangotech/zendesk-userscripts/raw/refs/heads/main/userscripts/side-conversation-replacement.user.js
