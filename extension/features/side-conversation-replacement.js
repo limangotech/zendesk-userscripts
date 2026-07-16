@@ -83,10 +83,10 @@
   }
 
   // Collect every side-conversation field that still contains placeholders and
-  // ask the app to resolve them in one message. Triggered by body changes (and
-  // once on attach): a macro fills body + subject together, and the body fill
-  // reliably fires CKEditor's change:data, so we read the subject at that moment.
-  // Debounced via onModelChange.
+  // ask the app to resolve them in one message. Debounced via onModelChange,
+  // which both the body (CKEditor change:data) and the subject (input event)
+  // feed into — so a macro that fills body + subject coalesces into a single
+  // request instead of one round trip per field.
   const processFields = () => {
     if (!activeEditor) return
 
@@ -104,7 +104,11 @@
     sendForReplacement(fields)
   }
 
-  // Single stable handler so we can on()/off() the same reference across attaches.
+  // Debounced trigger shared by every field source (body change:data + subject
+  // input). Each change re-arms the single timer, so processFields only runs once
+  // the composer has been quiet for DEBOUNCE_MS — long enough for a macro to fill
+  // both fields — and then sends them together. A single stable reference so we
+  // can on()/off() it across composer attaches.
   const onModelChange = () => {
     if (isInjecting) return
     clearTimeout(debounceTimer)
@@ -135,15 +139,11 @@
   // fires the model change events Zendesk's own composer syncs to (Send button,
   // draft state). No clipboard events, no selection juggling. The HTML is sanitized
   // first — see sanitizeHtml — so untrusted markup can never reach the editor.
+  // The caller sets the isInjecting guard so the change:data this fires does not
+  // bounce back into another replacement (see the result handler below).
   const injectText = (editor, html) => {
-    clearTimeout(debounceTimer) // cancel any queued send
-    isInjecting = true
-
     const sanitized = sanitizeHtml(html)
-    if (!sanitized) {
-      isInjecting = false
-      return
-    }
+    if (!sanitized) return
 
     editor.setData(sanitized)
     // Nicety: drop the caret at the end so the agent can keep typing after the
@@ -156,9 +156,6 @@
     } catch (e) {
       console.warn('[Limango Side Conversation Replacement Script] could not move caret after setData', e)
     }
-    // setData fires change:data synchronously; the short guard also swallows any
-    // async post-fixer change so our own write never bounces back as a new send.
-    setTimeout(() => { isInjecting = false }, INJECT_GUARD_MS)
   }
 
   // Write a value into a React-controlled <input> (e.g. the subject field).
@@ -178,8 +175,10 @@
     activeEditor = editor
     editor.model.document.on('change:data', onModelChange)
     // A macro may have pre-filled the composer before we subscribed (no change
-    // event reaches us in that case), so check the current content once.
-    processFields()
+    // event reaches us in that case), so schedule a check. Going through the
+    // debounce (rather than calling processFields now) lets a fill still in
+    // progress settle first, so subject + body go out in one request.
+    onModelChange()
   }
 
   const detachComposer = () => {
@@ -236,6 +235,12 @@
     if (!fields || typeof fields !== 'object') return
     console.log('[Limango Side Conversation Replacement Script] received fields from replacement:', Object.keys(fields).join(", "))
 
+    // Guard every write below: the CKEditor setData and the React input event we
+    // dispatch both fire change notifications we listen to. Without this they
+    // would bounce straight back into another replacement round trip.
+    isInjecting = true
+    clearTimeout(debounceTimer) // cancel any queued send
+
     if (typeof fields.body === 'string' && activeEditor) {
       injectText(activeEditor, fields.body)
     }
@@ -243,7 +248,23 @@
       const subjectInput = activeTabRoot().querySelector(QUERY_SELECTOR_SUBJECT)
       if (subjectInput) setReactInputValue(subjectInput, fields.subject)
     }
+
+    // The writes above fire their change events synchronously; the short guard
+    // also swallows any async post-fixer change so our own writes never bounce
+    // back as a new send.
+    setTimeout(() => { isInjecting = false }, INJECT_GUARD_MS)
   })
+
+  // The subject is a React-controlled <input>, separate from CKEditor, so its
+  // edits never fire the body's change:data. Feed them into the same debounce so
+  // a macro that fills subject + body coalesces into one replacement round trip
+  // instead of one per field. Delegated + capture phase so it survives React
+  // re-mounting the input across panel open/close cycles; processFields is a
+  // no-op when no composer is attached, and the isInjecting guard stops our own
+  // subject write-back from re-triggering.
+  document.addEventListener('input', (e) => {
+    if (e.target?.matches?.(QUERY_SELECTOR_SUBJECT)) onModelChange()
+  }, true)
 
   // Watch the body for the composer appearing (panel opened) or disappearing (panel closed).
   // Keeps running permanently so it catches every open/close cycle.
