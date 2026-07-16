@@ -13,6 +13,23 @@
   const EVENT_NAME_REPLACEMENT_REQUEST = 'LIMANGO_SIDE_CONVERSATION_REPLACEMENT_REQUEST'
   const QUERY_SELECTOR_SUBJECT = '[data-test-id="threadSubject"]'
   const QUERY_SELECTOR_BODY = '[data-test-id="threadBody"]'
+  // The Zendesk agent workspace keeps every open ticket tab mounted at once —
+  // each ticket's UI lives inside its own grid-layout container that carries
+  // data-is-active="true" only while its tab is the one on screen. A ticket's
+  // side-conversation composer AND its Limango360 ticket_sidebar iframe both
+  // live inside that container, so every lookup below is scoped to a single tab.
+  // A document-wide query returns the first match across ALL open tabs and can
+  // pair one ticket's composer with another ticket's app — resolving
+  // placeholders against the wrong order.
+  //
+  // We identify that container by BOTH signals Zendesk puts on it — the semantic
+  // class `ticket-panes-grid-layout` and the test id `ticket-<id>-custom-layout`
+  // — so if either is renamed the other still matches. The sibling `sc-*`
+  // classes are styled-components hashes that change on every Zendesk build, so
+  // they are deliberately not used; and `data-is-active` alone is too generic to
+  // anchor on, hence the pairing.
+  const QUERY_SELECTOR_TAB = '.ticket-panes-grid-layout, [data-test-id$="-custom-layout"]'
+  const QUERY_SELECTOR_ACTIVE_TAB = '.ticket-panes-grid-layout[data-is-active="true"], [data-test-id$="-custom-layout"][data-is-active="true"]'
   const DEBOUNCE_MS = 500
   // How long to ignore CKEditor change events after our own setData(), so the
   // model change it fires doesn't bounce straight back into another replacement.
@@ -37,21 +54,27 @@
   let attachPollTimer = null
   let isInjecting = false
 
-  const findAppIframe = () => {
-    for (const iframe of document.querySelectorAll('iframe')) {
-      const matchingOrigin = APP_ORIGINS.find(o => iframe.src.startsWith(o))
-      if (matchingOrigin) {
-        console.log('[Limango Side Conversation Replacement Script] found Limango360 iframe')
-        return { iframe, origin: matchingOrigin }
-      }
+  // Find the Limango360 app iframe within a given root (a single ticket tab).
+  const findAppIframe = (root) => {
+    for (const iframe of root.querySelectorAll('iframe')) {
+      const origin = APP_ORIGINS.find(o => iframe.src.startsWith(o))
+      if (origin) return { iframe, origin }
     }
-    console.warn('[Limango Side Conversation Replacement Script] no Limango360 iframe found')
     return null
   }
 
+  // The tab container of the composer we're currently attached to, so the app
+  // iframe and subject field we read/write always belong to the same ticket.
+  // Falls back to the whole document if the tab markup is absent (see
+  // QUERY_SELECTOR_TAB) — that just restores the previous single-tab behaviour.
+  const activeTabRoot = () => activeComposerEl?.closest(QUERY_SELECTOR_TAB) ?? document
+
   const sendForReplacement = (fields) => {
-    const appFrame = findAppIframe()
-    if (!appFrame?.iframe.contentWindow) return
+    const appFrame = findAppIframe(activeTabRoot())
+    if (!appFrame?.iframe.contentWindow) {
+      console.warn('[Limango Side Conversation Replacement Script] no Limango360 iframe found in the active ticket tab')
+      return
+    }
     console.log('[Limango Side Conversation Replacement Script] sending fields for replacement:', Object.keys(fields).join(", "))
     appFrame.iframe.contentWindow.postMessage(
       { type: EVENT_NAME_REPLACEMENT_REQUEST, fields },
@@ -72,7 +95,7 @@
     const body = activeEditor.getData()
     if (body.includes(PLACEHOLDER_PREFIX)) fields.body = body
 
-    const subject = document.querySelector(QUERY_SELECTOR_SUBJECT)?.value
+    const subject = activeTabRoot().querySelector(QUERY_SELECTOR_SUBJECT)?.value
     if (subject && subject.includes(PLACEHOLDER_PREFIX)) fields.subject = subject
 
     if (Object.keys(fields).length === 0) return
@@ -160,7 +183,7 @@
   }
 
   const detachComposer = () => {
-    console.log('[Limango Side Conversation Replacement Script] detaching composer — panel closed')
+    console.log('[Limango Side Conversation Replacement Script] detaching composer')
     activeEditor?.model.document.off('change:data', onModelChange)
     activeEditor = null
     activeComposerEl = null
@@ -174,7 +197,12 @@
   // ckeditorInstance expando (an attribute-level change the body observer below
   // doesn't see), so we poll briefly until the instance is available.
   const ensureAttached = () => {
-    const el = document.querySelector(QUERY_SELECTOR_BODY)
+    // Only ever work with the ticket tab the agent is currently viewing. With
+    // several tabs open the DOM holds one composer per tab, so a document-wide
+    // query could attach to a hidden tab's composer. Fall back to a document-wide
+    // lookup if the tab markup is absent, so we never regress below single-tab.
+    const root = document.querySelector(QUERY_SELECTOR_ACTIVE_TAB) ?? document
+    const el = root.querySelector(QUERY_SELECTOR_BODY)
 
     if (!el) {
       if (activeComposerEl) detachComposer()
@@ -182,6 +210,10 @@
     }
 
     if (el === activeComposerEl) return // already attached to this element
+
+    // A different composer is now current (a side conversation opened, or the
+    // agent switched tabs) — drop the old subscription before wiring up the new.
+    if (activeComposerEl) detachComposer()
 
     if (el.ckeditorInstance) {
       clearTimeout(attachPollTimer)
@@ -208,7 +240,7 @@
       injectText(activeEditor, fields.body)
     }
     if (typeof fields.subject === 'string') {
-      const subjectInput = document.querySelector(QUERY_SELECTOR_SUBJECT)
+      const subjectInput = activeTabRoot().querySelector(QUERY_SELECTOR_SUBJECT)
       if (subjectInput) setReactInputValue(subjectInput, fields.subject)
     }
   })
@@ -216,7 +248,16 @@
   // Watch the body for the composer appearing (panel opened) or disappearing (panel closed).
   // Keeps running permanently so it catches every open/close cycle.
   console.log('[Limango Side Conversation Replacement Script] registering body observer')
-  new MutationObserver(ensureAttached).observe(document.body, { childList: true, subtree: true })
+  // childList: the composer appearing/disappearing (side-conversation panel
+  // open/close). attributes + data-is-active: the agent switching between open
+  // ticket tabs, which flips the active tab without adding or removing DOM nodes,
+  // so we must re-point at the newly active tab's composer.
+  new MutationObserver(ensureAttached).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-is-active'],
+  })
 
   // Handle the panel already being open when the script loads.
   ensureAttached()
